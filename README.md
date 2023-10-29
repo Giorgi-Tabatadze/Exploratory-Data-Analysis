@@ -1,3 +1,3 @@
-This repository show the journie I went through in order to learn exploratory 
+This repository show the journey I went through in order to learn exploratory 
 data anaylsis. I have completed some exercises to learn the basics of EDA and 
 it also features a classical housing price prediciton project. 
