@@ -143,3 +143,70 @@ def bar_chart(df, feature, label):
   ax.text(1, 0.1, textstr, fontsize=12, transform=plt.gcf().transFigure)
   plt.show()
 
+
+
+def mlr_prepare(df):
+  import numpy as np 
+  import pandas as pd
+  from sklearn.preprocessing import MinMaxScaler
+
+  for col in df: 
+    if not pd.api.types.is_any_real_numeric_dtype(df[col]):
+      df = df.join(pd.get_dummies(df[col], prefix=col, drop_first=False).astype(int))
+  
+  df = df.select_dtypes(int)
+  df_minmax = pd.DataFrame(MinMaxScaler().fit_transform(df), columns=df.columns)
+
+  return df_minmax
+
+def mlr(df, label):
+  import statsmodels.api as sm
+
+  y = df[label]
+  X = df.drop(columns=[label]).assign(const=1)
+  
+  results = sm.OLS(y, X).fit()
+  return results
+
+def mlr_feature_df(results): 
+  import pandas as pd
+
+  df_features = pd.DataFrame({'coef':results.params, "t":abs(results.tvalues),"p":results.pvalues})
+  df_features.drop(labels= ['const'], inplace=True)
+  df_features = df_features.sort_values(by=['t', 'p'])
+  return df_features
+
+def mlr_fit(results, actual, roundto=10):
+  import numpy as np
+
+  df_features = mlr_feature_df(results)
+  residuals = np.array(actual) - np.array(results.fittedvalues)
+  rmse = np.sqrt(sum((residuals**2)/len(actual)))
+  mae = np.mean(abs(np.array(actual) - np.array(results.fittedvalues)))
+  fit_stats = [round(results.rsquared, roundto), round(results.rsquared_adj, roundto), 
+               round(results.rsquared - results.rsquared_adj, roundto), round(rmse, roundto), 
+               round(mae, roundto), [df_features.index.values]]
+  
+  return fit_stats
+
+def mlr_step(df, label, min=2):
+  import pandas as pd
+
+  df_models = pd.DataFrame(columns=["R2", "R2a", "diff", "RMSE", "MAE", "features"])
+  df = mlr_prepare(df)
+  results = mlr(df, label)
+  df_models.loc[str(len(results.params))] = mlr_fit(results, df[label], 10)
+  df_features = mlr_feature_df(results)
+
+  while len(results.params) >= min:
+    df = df.drop(columns=[df_features.index[0]])
+    results = mlr(df, label)
+    df_features = mlr_feature_df(results)
+    df_models.loc[len(results.params)] = mlr_fit(results, df[label], 10)
+  
+  df_models.to_excel("./" + label + ".xlsx")
+  df_models.to_csv("./" + label + ".csv")
+
+  df_models.drop(columns=["features"], inplace=True)
+
+  return df_models
